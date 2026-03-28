@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "calculator",
-    "slug": "calculator",
+    "name": "Jogo da Velha",
+    "slug": "Jogo da Velha",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "calculator",
+    "scheme": "Jogo da Velha",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
