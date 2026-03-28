@@ -1,25 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, 
   Text, 
   View, 
   TouchableOpacity, 
   SafeAreaView, 
-  useWindowDimensions,
-  ViewStyle
+  useWindowDimensions 
 } from 'react-native';
 
-type Player = 'X' | 'O' | null;
+import { Jogo, Jogador, JogadorAutomatizado, Partida, SituacaoPartida, Peca } from './ModelagemJogo';
 
 interface SquareProps {
-  value: Player;
+  value: string | null;
   onSquareClick: () => void;
   size: number;
-}
-
-interface ScoreState {
-  user: number;
-  computer: number;
 }
 
 const Square: React.FC<SquareProps> = ({ value, onSquareClick, size }) => {
@@ -41,122 +35,119 @@ const Square: React.FC<SquareProps> = ({ value, onSquareClick, size }) => {
 
 export default function Game() {
   const { width } = useWindowDimensions();
-  
-  const [squares, setSquares] = useState<Player[]>(Array(9).fill(null));
-  const [xIsNext, setXIsNext] = useState<boolean>(true); // Usuário é sempre X
-  const [scores, setScores] = useState<ScoreState>({ user: 0, computer: 0 });
-
   const boardSize = width * 0.9;
   const squareSize = boardSize / 3;
 
-  const winner = calculateWinner(squares);
-  const isDraw = !winner && squares.every(s => s !== null);
+  const jogoRef = useRef<Jogo | null>(null);
+  const partidaRef = useRef<Partida | null>(null);
+
+  if (!jogoRef.current) {
+    const humano = new Jogador("Você");
+    const computador = new JogadorAutomatizado("CPU");
+    jogoRef.current = new Jogo(humano, computador);
+  }
+  if (!partidaRef.current) {
+    partidaRef.current = jogoRef.current.iniciaPartida();
+  }
+
+  const [renderTick, setRenderTick] = useState(0);
+  const updateUI = () => setRenderTick(tick => tick + 1);
 
   useEffect(() => {
-    if (!xIsNext && !winner && !isDraw) {
+    const partida = partidaRef.current;
+    if (!partida) return;
+
+    if (!partida.getVezJogador1() && partida.verificaFim() === SituacaoPartida.EmAndamento) {
       const timeout = setTimeout(() => {
-        makeComputerMove();
+        const cpu = jogoRef.current!.getJogador2() as JogadorAutomatizado;
+        const [linha, coluna] = cpu.realizaJogada(partida.getTabuleiro());
+        
+        partida.joga(linha, coluna);
+        processaFimDeTurno(partida);
+        updateUI();
       }, 600);
       return () => clearTimeout(timeout);
     }
-  }, [xIsNext, winner, isDraw]);
+  }, [renderTick]);
 
-  useEffect(() => {
-    if (winner === 'X') {
-      setScores(prev => ({ ...prev, user: prev.user + 1 }));
-    } else if (winner === 'O') {
-      setScores(prev => ({ ...prev, computer: prev.computer + 1 }));
+  const processaFimDeTurno = (partida: Partida) => {
+    const situacao = partida.verificaFim();
+    if (situacao === SituacaoPartida.VitoriaJogador1) {
+      jogoRef.current!.getJogador1().adicionaVitoria();
+    } else if (situacao === SituacaoPartida.VitoriaJogador2) {
+      jogoRef.current!.getJogador2().adicionaVitoria();
     }
-  }, [winner]);
+  };
 
-  function handleClick(i: number): void {
-    if (squares[i] || winner || !xIsNext) return;
+  const handleClick = (linha: number, coluna: number): void => {
+    const partida = partidaRef.current;
+    if (!partida || !partida.getVezJogador1()) return;
 
-    const nextSquares = squares.slice();
-    nextSquares[i] = 'X';
-    setSquares(nextSquares);
-    setXIsNext(false);
-  }
-
-  function makeComputerMove(): void {
-    const nextSquares = squares.slice();
-    const emptyIndices = squares
-      .map((val, idx) => (val === null ? idx : null))
-      .filter((val): val is number => val !== null);
-    
-    if (emptyIndices.length > 0) {
-      const randomIndex = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
-      nextSquares[randomIndex] = 'O';
-      setSquares(nextSquares);
-      setXIsNext(true);
+    const sucesso = partida.joga(linha, coluna);
+    if (sucesso) {
+      processaFimDeTurno(partida);
+      updateUI();
     }
-  }
+  };
 
-  function resetGame(): void {
-    setSquares(Array(9).fill(null));
-    setXIsNext(true);
-  }
+  const resetGame = (): void => {
+    if (jogoRef.current) {
+      partidaRef.current = jogoRef.current.iniciaPartida();
+      updateUI();
+    }
+  };
 
   const getStatus = (): string => {
-    if (winner) return winner === 'X' ? "Você Venceu! 🎉" : "O Computador Venceu! 🤖";
-    if (isDraw) return "Empate! 🤝";
-    return xIsNext ? "Sua vez (X)" : "Computador pensando...";
+    const partida = partidaRef.current;
+    if (!partida) return "";
+
+    const situacao = partida.verificaFim();
+    if (situacao === SituacaoPartida.VitoriaJogador1) return "Você Venceu! 🎉";
+    if (situacao === SituacaoPartida.VitoriaJogador2) return "O Computador Venceu! 🤖";
+    if (situacao === SituacaoPartida.Empate) return "Empate! 🤝";
+    
+    return partida.getVezJogador1() ? "Sua vez (X)" : "Computador pensando...";
   };
+
+  const tabuleiro = partidaRef.current!.getTabuleiro();
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.scoreBoard}>
         <View style={styles.scoreBox}>
           <Text style={styles.scoreLabel}>VOCÊ (X)</Text>
-          <Text style={styles.scoreValue}>{scores.user}</Text>
+          <Text style={styles.scoreValue}>{jogoRef.current!.getJogador1().getVitorias()}</Text>
         </View>
         <View style={styles.scoreBox}>
           <Text style={styles.scoreLabel}>CPU (O)</Text>
-          <Text style={styles.scoreValue}>{scores.computer}</Text>
+          <Text style={styles.scoreValue}>{jogoRef.current!.getJogador2().getVitorias()}</Text>
         </View>
       </View>
 
       <Text style={styles.status}>{getStatus()}</Text>
 
       <View style={[styles.board, { width: boardSize, height: boardSize }]}>
-        {[0, 1, 2].map((row) => (
-          <View key={row} style={styles.boardRow}>
-            {[0, 1, 2].map((col) => {
-              const index = row * 3 + col;
-              return (
-                <Square 
-                  key={index}
-                  size={squareSize} 
-                  value={squares[index]} 
-                  onSquareClick={() => handleClick(index)} 
-                />
-              );
-            })}
+        {tabuleiro.map((row: (Peca | null)[], rowIndex: number) => (
+          <View key={rowIndex} style={styles.boardRow}>
+            {row.map((peca: string | null, colIndex: number) => (
+              <Square 
+                key={`${rowIndex}-${colIndex}`}
+                size={squareSize} 
+                value={peca} 
+                onSquareClick={() => handleClick(rowIndex, colIndex)} 
+              />
+            ))}
           </View>
         ))}
       </View>
 
-      {(winner || isDraw) && (
+      {partidaRef.current!.verificaFim() !== SituacaoPartida.EmAndamento && (
         <TouchableOpacity style={styles.resetButton} onPress={resetGame}>
           <Text style={styles.resetButtonText}>Jogar Novamente</Text>
         </TouchableOpacity>
       )}
     </SafeAreaView>
   );
-}
-
-function calculateWinner(squares: Player[]): Player {
-  const lines = [
-    [0, 1, 2], [3, 4, 5], [6, 7, 8],
-    [0, 3, 6], [1, 4, 7], [2, 5, 8],
-    [0, 4, 8], [2, 4, 6],
-  ];
-  for (const [a, b, c] of lines) {
-    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-      return squares[a];
-    }
-  }
-  return null;
 }
 
 const styles = StyleSheet.create({
