@@ -31,20 +31,88 @@ export enum Peca {
     }
   }
   
-  export class JogadorAutomatizado extends Jogador { 
+  export class JogadorAutomatizado extends Jogador {
     constructor(nome: string = "Computador") {
       super(nome);
     }
   
-    realizaJogada(tabuleiro: (Peca | null)[][]): [number, number] { 
+    realizaJogada(tabuleiro: (Peca | null)[][]): [number, number] {
+      let melhorPontuacao = -Infinity;
+      let melhorJogada: [number, number] = [-1, -1];
+  
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
           if (tabuleiro[i][j] === null) {
-            return [i, j];
+            tabuleiro[i][j] = Peca.Circulo; 
+            let pontuacao = this.minimax(tabuleiro, 0, false);
+            tabuleiro[i][j] = null; 
+  
+            if (pontuacao > melhorPontuacao) {
+              melhorPontuacao = pontuacao;
+              melhorJogada = [i, j];
+            }
           }
         }
       }
-      return [0, 0]; 
+      
+      return melhorJogada;
+    }
+  
+  
+    private minimax(tabuleiro: (Peca | null)[][], profundidade: number, isMaximizing: boolean): number {
+      const vencedor = this.verificaVencedorSimulado(tabuleiro);
+      
+      if (vencedor === Peca.Circulo) return 10 - profundidade; 
+      if (vencedor === Peca.Xis) return -10 + profundidade;    
+      if (this.isTabuleiroCheio(tabuleiro)) return 0;          
+  
+      if (isMaximizing) {
+        let melhorPontuacao = -Infinity;
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) {
+            if (tabuleiro[i][j] === null) {
+              tabuleiro[i][j] = Peca.Circulo;
+              let pontuacao = this.minimax(tabuleiro, profundidade + 1, false);
+              tabuleiro[i][j] = null;
+              melhorPontuacao = Math.max(pontuacao, melhorPontuacao);
+            }
+          }
+        }
+        return melhorPontuacao;
+      } else {
+        let melhorPontuacao = Infinity;
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) {
+            if (tabuleiro[i][j] === null) {
+              tabuleiro[i][j] = Peca.Xis;
+              let pontuacao = this.minimax(tabuleiro, profundidade + 1, true);
+              tabuleiro[i][j] = null;
+              melhorPontuacao = Math.min(pontuacao, melhorPontuacao);
+            }
+          }
+        }
+        return melhorPontuacao;
+      }
+    }
+  
+    private verificaVencedorSimulado(t: (Peca | null)[][]): Peca | null {
+      for (let i = 0; i < 3; i++) {
+        if (t[i][0] && t[i][0] === t[i][1] && t[i][0] === t[i][2]) return t[i][0];
+        if (t[0][i] && t[0][i] === t[1][i] && t[0][i] === t[2][i]) return t[0][i];
+      }
+      if (t[0][0] && t[0][0] === t[1][1] && t[0][0] === t[2][2]) return t[0][0];
+      if (t[0][2] && t[0][2] === t[1][1] && t[0][2] === t[2][0]) return t[0][2];
+      
+      return null;
+    }
+  
+    private isTabuleiroCheio(t: (Peca | null)[][]): boolean {
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          if (t[i][j] === null) return false;
+        }
+      }
+      return true;
     }
   }
   
